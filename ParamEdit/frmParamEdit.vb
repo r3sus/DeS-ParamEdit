@@ -23,7 +23,7 @@ Public Class frmParamEdit
 
 
     Dim fs As FileStream
-
+    Private pd_file As String = Application.StartupPath() + "\pd.txt"
 
     Structure paramDefs
         Public paramName As String
@@ -101,9 +101,10 @@ Public Class frmParamEdit
         openDlg.Filter = "Paramdef File|*paramdef"
         openDlg.Title = "Open your Paramdef file"
 
-        If openDlg.ShowDialog() = Windows.Forms.DialogResult.OK Then
-            txtParamdef.Text = openDlg.FileName
-        End If
+        If openDlg.ShowDialog() = Windows.Forms.DialogResult.OK Then txtParamdef.Text = openDlg.FileName
+
+        If ComboBox1.SelectedIndex = 1 Then txtParamdef.Text = Path.GetDirectoryName(txtParamdef.Text)
+
     End Sub
     Private Sub btnBrowseParam_Click(sender As Object, e As EventArgs) Handles btnBrowseParam.Click
         Dim openDlg As New OpenFileDialog()
@@ -333,36 +334,9 @@ Public Class frmParamEdit
         e.Effect = DragDropEffects.Copy
     End Sub
 
+    Private Sub paramdef_read(pd As String)
+        fs = New IO.FileStream(pd, IO.FileMode.Open)
 
-
-
-    'Open File
-    Private Sub btnOpen_Click(sender As Object, e As EventArgs) Handles btnOpen.Click
-        dgvParams.Rows.Clear()
-        dgvParams.Columns.Clear()
-
-
-        'I don't support your empty textboxes, but I will fight to the death for your right to have them.
-        If txtParamdef.Text = "" Then
-            MsgBox("No paramdef entered.")
-            Return
-        End If
-        If txtParam.Text = "" Then
-            MsgBox("No param entered.")
-            Return
-        End If
-
-        If Not File.Exists(txtParamdef.Text) Then
-            MsgBox("Paramdef not found.")
-            Return
-        End If
-        If Not File.Exists(txtParam.Text) Then
-            MsgBox("Param not found.")
-            Return
-        End If
-
-
-        fs = New IO.FileStream(txtParamdef.Text, IO.FileMode.Open)
         'Start reading .paramdef file
 
         Dim length As UInteger
@@ -376,8 +350,6 @@ Public Class frmParamEdit
         Dim paramMax As Single
         Dim paramName As String
 
-        Dim offset As UInteger
-        Dim paramDefOffset As UInteger
 
         length = RUInt32(&H0)
 
@@ -438,18 +410,19 @@ Public Class frmParamEdit
             paramDef(i).paramMax = paramMax
 
 
-
             dgvParams.Columns.Add(paramDef(i).paramName, paramDef(i).paramName)
         Next
         fs.Close()
         'End reading .paramdef file
+    End Sub
+    Private Sub param_read(prm As String)
 
-
-        dgvParams.Columns.Add("description", "Description")
-
+        Dim numEntries As UInteger
+        Dim offset As UInteger
+        Dim paramDefOffset As UInteger
 
         'Start reading .param file
-        fs = New IO.FileStream(txtParam.Text, IO.FileMode.Open)
+        fs = New IO.FileStream(prm, IO.FileMode.Open)
 
         txtUnk0x6.Text = RUInt16(&H6)
         txtUnk0x8.Text = RUInt16(&H8)
@@ -556,6 +529,146 @@ Public Class frmParamEdit
 
         Next
         fs.Close()
+    End Sub
+
+    Private Sub TxtParamdef_TextChanged(sender As Object, e As EventArgs) Handles txtParamdef.TextChanged
+
+        btnOpen.Enabled = False
+        txtParamdef.BackColor = Color.Yellow
+
+        'If txtParamdef.Text = "" Then Return
+        txtParamdef.Text = txtParamdef.Text.Replace("""", "")
+
+        'Dim pcom = Path.Combine(txtParamdef.Text, "\NpcParam.paramdef")
+
+        'If ComboBox1.SelectedIndex = 0 Then 
+        If Not File.Exists(txtParamdef.Text + "\NpcParam.paramdef") Then Return
+
+        txtParamdef.BackColor = Color.Lime
+
+        btnOpen.Enabled = (txtParam.BackColor = Color.Lime)
+
+        My.Settings.pddir = txtParamdef.Text
+        My.Settings.Save()
+    End Sub
+    Dim dp As Boolean
+    Dim pdir, pname As String
+    Dim bnum As Integer
+    Function Last_bak()
+        'Dim fl As String
+        Dim k As Integer = 0
+        For Each fl As String In Directory.GetFiles(pdir, $"{pname}*.bak")
+            k += 1
+        Next
+        'MsgBox(k)
+        'bnum = k
+        'Path.GetFileName(fl).Split(".")(1)
+        Return k
+    End Function
+    Function PathCombine(a As String, b As String)
+        Return Path.GetFullPath(Path.Combine(a, b))
+    End Function
+    Private Sub TxtParam_TextChanged(sender As Object, e As EventArgs) Handles txtParam.TextChanged
+
+        txtParam.BackColor = Color.Yellow
+        btnOpen.Enabled = False
+
+        'If txtParam.Text = "" Then Return
+
+        txtParam.Text = txtParam.Text.Replace("""", "")
+
+        If Not File.Exists(txtParam.Text) Then Return
+
+        txtParam.BackColor = Color.Lime
+
+        'txtParamdef.BackColor = If(File.Exists(txtParam.Text), Color.Lime, Color.Yellow)
+
+        'txtParam.BackColor = Color.Lime
+
+        btnOpen.Enabled = (txtParamdef.BackColor = Color.Lime)
+
+        pdir = Path.GetDirectoryName(txtParam.Text)
+        pname = Path.GetFileName(txtParam.Text)
+
+        'Dim pp As New System.IO.FileInfo(txtParam.Text)
+        'If pdir IsNot My.Settings.pdir Then
+
+        If txtParam.Text IsNot My.Settings.plp Then
+            ComboBox2.Items.Clear()
+            For Each file As String In Directory.GetFiles(pdir, "*.param")
+                'If Path.GetExtension(file) = ".param" Then 
+                ComboBox2.Items.Add(Path.GetFileName(file))
+            Next
+        End If
+
+        ComboBox2.Text = pname
+
+        dp = pname.Contains("_")
+
+        My.Settings.plp = txtParam.Text
+        If dp Then My.Settings.dpp = txtParam.Text Else My.Settings.gpp = txtParam.Text
+        My.Settings.Save()
+
+        Draw.Checked = dp
+
+        bnum = Last_bak()
+        bn.Text = bnum
+        btnRestore.Enabled = (bnum > 0)
+        'Directory.GetParent()
+        'bnd.Text = PathCombine(pdir, "..\..")
+        'Dim bndn As String = bnd.Text.Split("\").Last.Replace("-", ".")
+        'MsgBox(Directory.GetParent(bnd.Text) & bndn)
+        'File.Exists(txtParam.Text + ".bak")
+        'Process.Start("cmd", $"/k cd {pdir}")
+    End Sub
+
+
+    Private Sub defset()
+        btnSave.Enabled = False
+
+        btnImportCSV.Enabled = False
+
+        btnExportCSV.Enabled = False
+
+        btnRestore.Enabled = False
+    End Sub
+    Private Sub ComboBox2_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBox2.SelectedIndexChanged
+        txtParam.Text = pdir + "\" + ComboBox2.Text
+    End Sub
+
+    'Open File
+    Private Sub btnOpen_Click(sender As Object, e As EventArgs) Handles btnOpen.Click
+        dgvParams.Rows.Clear()
+        dgvParams.Columns.Clear()
+
+        'Dim pd As String
+        'Dim pname As String = Path.GetFileName(txtParam.Text)
+        'If ComboBox1.SelectedIndex = 0 Then
+        'Dim pp As New System.IO.FileInfo(txtParam.Text)
+        'Dim pf As String = pp.Directory.Name
+
+        'Dim chd As Integer = If(dp, 4, 0)
+        Dim pdn As String = pname.Remove(0, If(dp, 4, 0))
+
+        Dim pd As String = Path.Combine(txtParamdef.Text, pdn + "def")
+        'File.WriteAllText(pd_file, txtParamdef.Text)
+        'My.Settings.pdir = Path.GetDirectoryName(txtParam.Text)
+        'MsgBox(pd)
+        'Else pd = txtParam.Text
+
+        'End If
+
+        'Useless check
+        'If Not File.Exists(pd) Then
+        '    MsgBox("Paramdef not found.")
+        '    Return
+        'End If
+
+        paramdef_read(pd)
+
+        dgvParams.Columns.Add("description", "Description")
+
+        param_read(txtParam.Text)
 
         dgvParams.Columns(1).Frozen = True
         dgvParams.AutoResizeColumns()
@@ -564,15 +677,17 @@ Public Class frmParamEdit
             column.SortMode = DataGridViewColumnSortMode.NotSortable
         Next
 
-        Text = $"{New FileInfo(txtParam.Text).Name} - Wulf's Souls Series Parameter Editor"
+        Text = ComboBox2.Text + " - Wulf's Souls Series Parameter Editor"
 
+        btnSave.Enabled = True
+
+        btnImportCSV.Enabled = True
+
+        btnExportCSV.Enabled = True
     End Sub
 
-
-
-    'Save Param File
-    Private Sub btnSave_Click(sender As Object, e As EventArgs) Handles btnSave.Click
-        fs = New IO.FileStream(txtParam.Text, IO.FileMode.Create)
+    Private Sub Save(prm_fl As String)
+        fs = New IO.FileStream(prm_fl, IO.FileMode.Create)
 
         Dim paramTotalSize As Integer = 0
         Dim paramDefOffset As UInteger
@@ -697,7 +812,7 @@ Public Class frmParamEdit
                             WUInt8(offset + paramDefOffset, Val(dgvParams.Rows(i).Cells(j + 2).FormattedValue))
                         Else
                             For p As UInteger = 0 To paramDef(j).paramSize - 1
-                                If (val(dgvParams.Rows(i).Cells(j + 2).FormattedValue) And 2 ^ p) > 0 Then
+                                If (Val(dgvParams.Rows(i).Cells(j + 2).FormattedValue) And 2 ^ p) > 0 Then
                                     bitval = bitval + 2 ^ bitfield
                                 End If
 
@@ -720,10 +835,22 @@ Public Class frmParamEdit
             Next
         Next
         fs.Close()
+    End Sub
+
+    'Save Param File
+    Private Sub btnSave_Click(sender As Object, e As EventArgs) Handles btnSave.Click
+        bnum += 1
+        FileCopy(txtParam.Text, $"{txtParam.Text}.{bnum}.bak")
+
+        Debak.Enabled = (bnum >= 2)
+
+        'FileCopy(txtParam.Text, txtParam.Text + ".bak")
+        Save(txtParam.Text)
         MsgBox("Save complete.")
 
         Text = $"{New FileInfo(txtParam.Text).Name} - Wulf's Souls Series Parameter Editor"
 
+        btnRestore.Enabled = True
     End Sub
 
 
@@ -736,41 +863,50 @@ Public Class frmParamEdit
         propertyInfo.SetValue(dgvParams, True, Nothing)
 
 
+        'If IO.File.Exists(pd_file) Then txtParamdef.Text = IO.File.ReadAllText(pd_file)
+
+        txtParamdef.Text = My.Settings.pddir
+
+        'ComboBox1.SelectedIndex = 0
+
+        'MsgBox(Command())
+        txtParam.Text = If(Command().Length > 0, Command(), My.Settings.plp)
+
+        'btnOpen.PerformClick()
+
         Version = lblVer.Text
 
-        Dim oldFileArg As String = Nothing
-        For Each arg In Environment.GetCommandLineArgs().Skip(1)
-            If arg.StartsWith("--old-file=") Then
-                oldFileArg = arg.Substring("--old-file=".Length)
-            Else
-                MsgBox("Unknown command line arguments")
-                oldFileArg = Nothing
-                Exit For
-            End If
-        Next
-        If oldFileArg IsNot Nothing Then
-            If oldFileArg.EndsWith(".old") Then
-                Dim t = New Thread(
-                    Sub()
-                        Try
-                            'Give the old version time to shut down
-                            Thread.Sleep(1000)
-                            File.Delete(oldFileArg)
-                        Catch ex As Exception
-                            Me.Invoke(Function() MsgBox("Deleting old version failed: " & vbCrLf & ex.Message, MsgBoxStyle.Exclamation))
-                        End Try
-                    End Sub)
-                t.Start()
-            Else
-                MsgBox("Deleting old version failed: Invalid filename ", MsgBoxStyle.Exclamation)
-            End If
-        End If
+        'Dim oldFileArg As String = Nothing
+        'For Each arg In Environment.GetCommandLineArgs().Skip(1)
+        '    If arg.StartsWith("--old-file=") Then
+        '        oldFileArg = arg.Substring("--old-file=".Length)
+        '    Else
+        '        MsgBox("Unknown command line arguments")
+        '        oldFileArg = Nothing
+        '        Exit For
+        '    End If
+        'Next
+        'If oldFileArg IsNot Nothing Then
+        '    If oldFileArg.EndsWith(".old") Then
+        '        Dim t = New Thread(
+        '            Sub()
+        '                Try
+        '                    'Give the old version time to shut down
+        '                    Thread.Sleep(1000)
+        '                    File.Delete(oldFileArg)
+        '                Catch ex As Exception
+        '                    Me.Invoke(Function() MsgBox("Deleting old version failed: " & vbCrLf & ex.Message, MsgBoxStyle.Exclamation))
+        '                End Try
+        '            End Sub)
+        '        t.Start()
+        '    Else
+        '        MsgBox("Deleting old version failed: Invalid filename ", MsgBoxStyle.Exclamation)
+        '    End If
+        'End If
 
 
         updatecheck()
     End Sub
-
-
 
     'Initiate Update
     Private Sub btnUpdate_Click(sender As Object, e As EventArgs) Handles btnUpdate.Click
@@ -788,18 +924,20 @@ Public Class frmParamEdit
     Private Sub btnExportCSV_Click(sender As Object, e As EventArgs) Handles btnExportCSV.Click
         Dim entries As New List(Of String)
         Dim str As String
+        'dgvParams.Columns.Add(paramDef(i).paramName, paramDef(i).paramName)
 
         For Each row As DataGridViewRow In dgvParams.Rows
             str = ""
             If Not row.Cells(0).FormattedValue = "" Then
                 For Each cell As DataGridViewCell In row.Cells
-                    str = str & cell.FormattedValue & "|"
+                    str = str & cell.FormattedValue & ";"
                 Next
                 entries.Add(str)
             End If
         Next
 
         File.WriteAllLines(txtParam.Text & ".csv", entries)
+        System.Diagnostics.Process.Start(txtParam.Text & ".csv")
         MsgBox("Successfully exported to " & txtParam.Text & ".csv")
     End Sub
     Private Sub btnImportCSV_Click(sender As Object, e As EventArgs) Handles btnImportCSV.Click
@@ -811,7 +949,7 @@ Public Class frmParamEdit
             Dim entries = File.ReadAllLines(txtParam.Text & ".csv")
             For Each entry In entries
 
-                For Each cell In entry.Split("|")
+                For Each cell In entry.Split(";")
                     row.Add(cell)
                 Next
                 dgvParams.Rows.Add(row.ToArray)
@@ -875,5 +1013,37 @@ Public Class frmParamEdit
                 dgv.Rows(startRow + y).Cells(startColumn + x).Value = newValue
             Next
         Next
+    End Sub
+
+    Private Sub btnRestore_Click(sender As Object, e As EventArgs) Handles btnRestore.Click
+        FileCopy($"{txtParam.Text}.{bnum}.bak", txtParam.Text)
+    End Sub
+
+    Private Sub Debak_Click(sender As Object, e As EventArgs) Handles Debak.Click
+        File.Delete($"{txtParam.Text}.{bnum}.bak")
+        bnum -= 1
+        Debak.Enabled = (bnum >= 1)
+    End Sub
+
+    Private Sub pdf_Click(sender As Object, e As EventArgs) Handles pdf.Click
+        Dim pdf As String = InputBox("Your Message ", "Title", txtParamdef.Text)
+        If Directory.Exists(pdf) And txtParamdef.Text IsNot pdf Then txtParamdef.Text = pdf
+    End Sub
+
+    Private Sub Prm_Click(sender As Object, e As EventArgs) Handles prm.Click
+        Dim prm As String = InputBox("Your Message ", "Title", txtParam.Text)
+        If File.Exists(prm) And txtParam.Text IsNot prm Then txtParam.Text = prm
+    End Sub
+
+    Private Sub CheckBox1_CheckedChanged(sender As Object, e As EventArgs)
+        'Label1, txtParam,
+    End Sub
+
+    Private Sub Ccn_CheckedChanged(sender As Object, e As EventArgs) Handles ccn.CheckedChanged
+        If ccn.Checked Then dgvParams.ClipboardCopyMode = DataGridViewClipboardCopyMode.EnableAlwaysIncludeHeaderText Else dgvParams.ClipboardCopyMode = DataGridViewClipboardCopyMode.EnableWithoutHeaderText
+    End Sub
+
+    Private Sub Draw_CheckedChanged(sender As Object, e As EventArgs) Handles Draw.CheckedChanged
+        txtParam.Text = If(Draw.Checked, My.Settings.dpp, My.Settings.gpp)
     End Sub
 End Class
